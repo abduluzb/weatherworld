@@ -1,0 +1,654 @@
+<html><head><base href="." />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scale=no">
+<title>Weather</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Arial', sans-serif;
+    }
+    #earth-container {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        cursor: grab;
+    }
+    #earth-container:active {
+        cursor: grabbing;
+    }
+    .weather-display {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        max-width: 400px;
+        margin: 0 auto;
+        bottom: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(15px);
+        color: white;
+        padding: 20px 30px;
+        border-radius: 15px;
+        display: none;
+        z-index: 2;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: center;
+    }
+    .weather-display h2 {
+        margin: 0 0 15px 0;
+        color: white;
+        font-size: 24px;
+        font-weight: 500;
+        margin-bottom: 20px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .weather-details {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .weather-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 16px;
+    }
+    .weather-item:last-child {
+        border-bottom: none;
+    }
+    .weather-item span:first-child {
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.7);
+    }
+    @media screen and (max-width: 600px) {
+        .search-container {
+            width: 90%;
+            padding: 10px 15px;
+            flex-direction: column;
+        }
+        
+        #city-search {
+            width: 100%;
+            font-size: 14px;
+            padding: 8px 12px;
+        }
+        
+        .search-container button {
+            width: 100%;
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        
+        .weather-display {
+            width: 85%;
+            padding: 15px;
+            bottom: 15px;
+        }
+        
+        .weather-display h2 {
+            font-size: 20px;
+        }
+        
+        .weather-item {
+            font-size: 14px;
+            padding: 8px 0;
+        }
+        
+        #error-message {
+            font-size: 13px;
+            padding: 8px 15px;
+        }
+    }
+    /* Add tablet styles */
+    @media screen and (min-width: 601px) and (max-width: 1024px) {
+        .search-container {
+            width: 80%;
+            max-width: 500px;
+        }
+        
+        .weather-display {
+            width: 70%;
+            max-width: 500px;
+        }
+    }
+    /* Add landscape mode adjustments */
+    @media screen and (max-height: 500px) and (orientation: landscape) {
+        .search-container {
+            top: 10px;
+        }
+        
+        .weather-display {
+            bottom: 10px;
+            padding: 10px 15px;
+        }
+        
+        .weather-display h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .weather-item {
+            padding: 6px 0;
+        }
+    }
+    @media (hover: none) {
+        #earth-container {
+            cursor: default;
+        }
+    }
+    .search-container {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px 20px;
+        border-radius: 30px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    #city-search {
+        padding: 10px 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 25px;
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        width: 250px;
+        transition: all 0.3s ease;
+        font-size: 16px;
+        outline: none;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    #city-search::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+    }
+    #city-search:focus {
+        background: rgba(255, 255, 255, 0.25);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    }
+    .search-container button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 25px;
+        background: linear-gradient(45deg, #4CAF50, #45a049);
+        color: white;
+        cursor: pointer;
+        font-size: 16px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+    }
+    .search-container button:hover {
+        background: linear-gradient(45deg, #45a049, #3d8b41);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+    #error-message {
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-top: 10px;
+        background: rgba(255, 72, 72, 0.9);
+        color: white;
+        font-weight: 500;
+        padding: 10px 20px;
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 15px rgba(255, 72, 72, 0.3);
+        display: none;
+        white-space: nowrap;
+        transition: all 0.3s ease;
+    }
+    /* Add this to the existing CSS */
+    .loading-spinner {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 50px;
+        height: 50px;
+        display: none;
+        z-index: 3;
+    }
+
+    .loading-spinner:after {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 4px solid #fff;
+        border-color: #fff transparent #fff transparent;
+        animation: spinner 1.2s linear infinite;
+    }
+
+    @keyframes spinner {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Add loading state styles for the search button */
+    .search-container button.loading {
+        background: linear-gradient(45deg, #2196F3, #1976D2);
+        pointer-events: none;
+        opacity: 0.8;
+    }
+</style>
+</head>
+<body>
+    <div id="earth-container"></div>
+    <div class="weather-display" id="weather-info">
+        <h2 id="city-name"></h2>
+        <div id="weather-details"></div>
+    </div>
+    <div class="search-container">
+        <input type="text" id="city-search" placeholder="Enter city name...">
+        <button onclick="handleCitySearch()">Search</button>
+        <div id="error-message"></div>
+    </div>
+    <!-- Add this right after the search-container div -->
+    <div class="loading-spinner" id="loading-spinner"></div>
+
+<script>
+let scene, camera, renderer, earth;
+let moon, moonPivot;  // Add moonPivot
+let isDragging = false;
+let previousMousePosition = { x: 0, y: 0 };
+let earthRotation = { x: 0, y: 0 };
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000210); // Slightly bluer dark background
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({ 
+        antialias: true,
+        alpha: true 
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('earth-container').appendChild(renderer.domElement);
+
+    createStars();
+
+    const geometry = new THREE.SphereGeometry(5, 32, 32);
+    const texture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg');
+    const material = new THREE.MeshPhongMaterial({ 
+        map: texture, 
+        shininess: 20,  // Increased shininess
+        specular: 0x666666, // Brighter specular highlights
+        bumpScale: 0.05 // Add subtle surface detail
+    });
+    earth = new THREE.Mesh(geometry, material);
+    scene.add(earth);
+
+    createMoon();
+    const { sunLight } = createSun(); // Modified to only receive sunLight
+
+    scene.add(new THREE.AmbientLight(0x111111)); // Reduced from 0x333333
+    
+    camera.position.z = 15;
+
+    const container = document.getElementById('earth-container');
+    container.addEventListener('mousedown', onMouseDown);
+    container.addEventListener('mousemove', onMouseMove);
+    container.addEventListener('mouseup', onMouseUp);
+    container.addEventListener('mouseleave', onMouseUp);
+    
+    if ('ontouchstart' in window) {
+        container.addEventListener('touchstart', onTouchStart);
+        container.addEventListener('touchmove', onTouchMove);
+        container.addEventListener('touchend', onTouchEnd);
+    }
+
+    animate();
+}
+
+function createStars() {
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        color: 0xFFFFFF,
+        size: 0.12,  // Slightly smaller, more realistic stars
+        transparent: true,
+        opacity: 0.9,
+        sizeAttenuation: true // Makes far stars appear smaller
+    });
+
+    const starsVertices = [];
+    for(let i = 0; i < 20000; i++) {  // More stars for denser sky
+        const x = (Math.random() - 0.5) * 2000;
+        const y = (Math.random() - 0.5) * 2000;
+        const z = (Math.random() - 0.5) * 2000;
+        starsVertices.push(x, y, z);
+    }
+
+    starsGeometry.setAttribute('position', 
+        new THREE.Float32BufferAttribute(starsVertices, 3)
+    );
+
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(stars);
+}
+
+function createMoon() {
+    const moonGeometry = new THREE.SphereGeometry(1, 64, 64); // Higher polygon count
+    const moonTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/moon_1024.jpg');
+    const moonMaterial = new THREE.MeshPhongMaterial({ 
+        map: moonTexture,
+        bumpMap: moonTexture,
+        bumpScale: 0.05,
+        shininess: 8,
+        emissive: new THREE.Color(0x444444),
+        emissiveIntensity: 0.3
+    });
+    
+    moon = new THREE.Mesh(moonGeometry, moonMaterial);
+    
+    moonPivot = new THREE.Object3D();
+    scene.add(moonPivot);
+    moonPivot.add(moon);
+    
+    const moonLight = new THREE.PointLight(0xaaaaff, 1.2);
+    moonLight.distance = 30;
+    moonLight.decay = 2;
+    moonLight.position.set(5, 5, 5);
+    moon.add(moonLight);
+    
+    moon.position.set(15, 0, 0);
+}
+
+function createSun() {
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.9); // Slightly increased intensity
+    sunLight.position.set(50, 20, -30);
+    
+    const sunAmbient = new THREE.HemisphereLight(
+        0x0066ff, // More blue-ish sky color
+        0x000033, // Deeper dark ground color
+        0.4 // Slightly increased ambient light
+    );
+    
+    scene.add(sunLight);
+    scene.add(sunAmbient);
+    
+    return { sunLight };
+}
+
+function onMouseDown(event) {
+    isDragging = true;
+    previousMousePosition = {
+        x: event.clientX,
+        y: event.clientY
+    };
+}
+
+function onMouseMove(event) {
+    if (!isDragging) return;
+
+    const deltaMove = {
+        x: event.clientX - previousMousePosition.x,
+        y: event.clientY - previousMousePosition.y
+    };
+
+    earthRotation.x += deltaMove.y * 0.005;
+    earthRotation.y += deltaMove.x * 0.005;
+
+    earthRotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, earthRotation.x));
+
+    earth.rotation.x = earthRotation.x;
+    earth.rotation.y = earthRotation.y;
+
+    previousMousePosition = {
+        x: event.clientX,
+        y: event.clientY
+    };
+}
+
+function onMouseUp() {
+    isDragging = false;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    if (!isDragging) {
+        earth.rotation.y += 0.001;
+        earthRotation.y += 0.001;
+    }
+    
+    if (moonPivot) {
+        moonPivot.rotation.y += 0.0003; // Slower, more realistic orbit
+        moon.rotation.y += 0.0008; // Slower self-rotation
+    }
+    
+    TWEEN.update();
+    renderer.render(scene, camera);
+}
+
+function moveToLocation(lat, lng) {
+    const phi = (90 - lat) * (Math.PI / 180);
+    const theta = (lng + 180) * (Math.PI / 180);
+
+    const targetRotationY = -theta;
+    const targetRotationX = phi - Math.PI / 2;
+    
+    new TWEEN.Tween(earthRotation)
+        .to({ x: targetRotationX, y: targetRotationY }, 2000)
+        .easing(TWEEN.Easing.Cubic.InOut)
+        .onUpdate(() => {
+            earth.rotation.x = earthRotation.x;
+            earth.rotation.y = earthRotation.y;
+        })
+        .start();
+}
+
+async function getWeather(city) {
+    const API_KEY = '812fa141969f33371b74aa5e7e42657f'; // Replace with your API key
+    try {
+        const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric`);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching weather:', error);
+        return null;
+    }
+}
+
+function displayWeather(weatherData) {
+    if (!weatherData) return;
+
+    const weatherInfo = document.getElementById('weather-info');
+    const cityName = document.getElementById('city-name');
+    const weatherDetails = document.getElementById('weather-details');
+
+    if (weatherData.name.toLowerCase() === 'oz') {
+        cityName.textContent = 'The Land of Oz';
+        weatherInfo.style.border = 'none';
+        weatherDetails.innerHTML = `
+            <div class="weather-item">
+                <span>Status</span>
+                <span>Magical Weather</span>
+            </div>
+            <div class="weather-item">
+                <span>Temperature</span>
+                <span>Perfect</span>
+            </div>
+            <div class="weather-item">
+                <span>Wind</span>
+                <span>Whimsical</span>
+            </div>
+        `;
+    } else {
+        cityName.textContent = weatherData.name + ', ' + weatherData.sys.country;
+        
+        const temperature = Math.round(weatherData.main.temp);
+        const feelsLike = Math.round(weatherData.main.feels_like);
+        const description = weatherData.weather[0].description;
+        
+        weatherDetails.innerHTML = `
+            <div class="weather-item">
+                <span>Temperature</span>
+                <span>${temperature}°C</span>
+            </div>
+            <div class="weather-item">
+                <span>Feels Like</span>
+                <span>${feelsLike}°C</span>
+            </div>
+            <div class="weather-item">
+                <span>Weather</span>
+                <span>${description.charAt(0).toUpperCase() + description.slice(1)}</span>
+            </div>
+            <div class="weather-item">
+                <span>Humidity</span>
+                <span>${weatherData.main.humidity}%</span>
+            </div>
+            <div class="weather-item">
+                <span>Wind Speed</span>
+                <span>${Math.round(weatherData.wind.speed * 3.6)} km/h</span>
+            </div>
+        `;
+    }
+
+    weatherInfo.style.display = 'block';
+    weatherInfo.style.opacity = '0';
+    weatherInfo.style.transform = 'translate(-50%, 20px)';
+    
+    weatherInfo.style.transition = 'all 0.5s ease-out';
+    
+    setTimeout(() => {
+        weatherInfo.style.opacity = '1';
+        weatherInfo.style.transform = 'translate(-50%, 0)';
+    }, 100);
+}
+
+async function handleCitySearch() {
+    const cityInput = document.getElementById('city-search');
+    const weatherInfo = document.getElementById('weather-info');
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const searchButton = document.querySelector('.search-container button');
+    const city = cityInput.value.trim();
+    
+    if (city === '') {
+        showError('Please enter a city name');
+        return;
+    }
+
+    // Show loading states
+    weatherInfo.style.display = 'none';
+    loadingSpinner.style.display = 'block';
+    searchButton.classList.add('loading');
+    searchButton.textContent = 'Loading...';
+    cityInput.disabled = true;
+
+    try {
+        const weatherData = await getWeather(city);
+        if (weatherData && weatherData.cod !== '404') {
+            displayWeather(weatherData);
+            const lat = weatherData.coord.lat;
+            const lng = weatherData.coord.lon;
+            moveToLocation(lat, lng);
+        } else {
+            showError('City not found. Please check the spelling.');
+        }
+    } catch (error) {
+        showError('Error fetching weather data. Please try again.');
+        console.error(error);
+    } finally {
+        // Hide loading states
+        loadingSpinner.style.display = 'none';
+        searchButton.classList.remove('loading');
+        searchButton.textContent = 'Search';
+        cityInput.disabled = false;
+    }
+}
+
+function showError(message) {
+    const errorDiv = document.getElementById('error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 3000);
+}
+
+// Update renderer sizing function
+function handleResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(width, height);
+}
+
+// Update event listener
+window.addEventListener('resize', handleResize);
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+function onTouchStart(event) {
+    event.preventDefault();
+    isDragging = true;
+    previousMousePosition = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY
+    };
+}
+
+// Enhance touch handling with better sensitivity
+function onTouchMove(event) {
+    if (!isDragging) return;
+    event.preventDefault();
+
+    const touch = event.touches[0];
+    const sensitivity = window.innerWidth < 600 ? 0.007 : 0.005; // Increased sensitivity for mobile
+
+    const deltaMove = {
+        x: touch.clientX - previousMousePosition.x,
+        y: touch.clientY - previousMousePosition.y
+    };
+
+    earthRotation.x += deltaMove.y * sensitivity;
+    earthRotation.y += deltaMove.x * sensitivity;
+
+    // Limit rotation
+    earthRotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, earthRotation.x));
+
+    earth.rotation.x = earthRotation.x;
+    earth.rotation.y = earthRotation.y;
+
+    previousMousePosition = {
+        x: touch.clientX,
+        y: touch.clientY
+    };
+}
+
+function onTouchEnd() {
+    isDragging = false;
+}
+
+init();
+</script>
+</body>
+</html>
